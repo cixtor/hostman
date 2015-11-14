@@ -76,6 +76,19 @@ func (obj *Hostman) Entries() Entries {
 	return entries
 }
 
+func (obj *Hostman) ExportEntries() {
+	entries := obj.Entries()
+	result, err := json.MarshalIndent(entries, "", "\x20\x20")
+
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("%s\n", result)
+	os.Exit(0)
+}
+
 func main() {
 	flag.Usage = func() {
 		fmt.Println("Hostman (Hosts Manager)")
@@ -91,17 +104,9 @@ func main() {
 	var manager Hostman
 
 	if *export == true {
-		entries := manager.Entries()
-		result, err := json.MarshalIndent(entries, "", "\x20\x20")
-
-		if err != nil {
-			fmt.Printf("Error: %s\n", err)
-			os.Exit(1)
-		}
-
-		fmt.Printf("%s\n", result)
-		os.Exit(0)
+		manager.ExportEntries()
 	}
 
 	flag.Usage()
+	os.Exit(2)
 }
