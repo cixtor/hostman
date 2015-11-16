@@ -15,6 +15,7 @@ const config string = "/etc/hosts"
 
 var add = flag.String("add", "", "Add new entry to the hosts file")
 var export = flag.Bool("export", false, "List entries from the hosts file")
+var search = flag.String("search", "", "Search address or domain in the hosts file")
 
 type Hostman struct{}
 
@@ -25,6 +26,7 @@ type Entry struct {
 	Domain   string
 	Aliases  []string
 	Disabled bool
+	Raw      string
 }
 
 func (obj *Hostman) Entries() Entries {
@@ -67,6 +69,7 @@ func (obj *Hostman) Entries() Entries {
 				entry.Address = addresses[0]
 				entry.Domain = addresses[1]
 				entry.Disabled = entry.Address[0] == 0x23
+				entry.Raw = strings.Join(addresses, "\x20")
 
 				if quantity > 2 {
 					entry.Aliases = addresses[2:quantity]
@@ -111,6 +114,18 @@ func (obj *Hostman) AddEntry(entry string) {
 	}
 }
 
+func (obj *Hostman) SearchEntry(query string) {
+	entries := obj.Entries()
+
+	for _, entry := range entries {
+		if strings.Contains(entry.Raw, query) {
+			fmt.Printf("%s\n", entry.Raw)
+		}
+	}
+
+	os.Exit(0)
+}
+
 func (obj *Hostman) ExportEntries() {
 	entries := obj.Entries()
 	result, err := json.MarshalIndent(entries, "", "\x20\x20")
@@ -140,6 +155,8 @@ func main() {
 
 	if *add != "" {
 		manager.AddEntry(*add)
+	} else if *search != "" {
+		manager.SearchEntry(*search)
 	} else if *export == true {
 		manager.ExportEntries()
 	}
