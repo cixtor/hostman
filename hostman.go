@@ -116,11 +116,21 @@ func (obj *Hostman) AddEntry(entry string) {
 
 func (obj *Hostman) SearchEntry(query string) {
 	entries := obj.Entries()
+	var matches Entries
 
 	for _, entry := range entries {
 		if strings.Contains(entry.Raw, query) {
-			fmt.Printf("%s\n", entry.Raw)
+			matches = append(matches, entry)
+
+			if *export == false {
+				fmt.Printf("%s\n", entry.Raw)
+			}
 		}
+	}
+
+	if *export == true {
+		result, _ := json.MarshalIndent(matches, "", "\x20\x20")
+		fmt.Printf("%s\n", result)
 	}
 
 	os.Exit(0)
