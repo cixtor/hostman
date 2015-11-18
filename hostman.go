@@ -114,6 +114,18 @@ func (obj *Hostman) AddEntry(entry string) {
 	}
 }
 
+func (obj *Hostman) PrintExportEntries(entries Entries) {
+	result, err := json.MarshalIndent(entries, "", "\x20\x20")
+
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("%s\n", result)
+	os.Exit(0)
+}
+
 func (obj *Hostman) SearchEntry(query string) {
 	entries := obj.Entries()
 	var matches Entries
@@ -129,8 +141,7 @@ func (obj *Hostman) SearchEntry(query string) {
 	}
 
 	if *export == true {
-		result, _ := json.MarshalIndent(matches, "", "\x20\x20")
-		fmt.Printf("%s\n", result)
+		obj.PrintExportEntries(matches)
 	}
 
 	os.Exit(0)
@@ -138,15 +149,7 @@ func (obj *Hostman) SearchEntry(query string) {
 
 func (obj *Hostman) ExportEntries() {
 	entries := obj.Entries()
-	result, err := json.MarshalIndent(entries, "", "\x20\x20")
-
-	if err != nil {
-		fmt.Printf("Error: %s\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("%s\n", result)
-	os.Exit(0)
+	obj.PrintExportEntries(entries)
 }
 
 func main() {
