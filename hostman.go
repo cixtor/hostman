@@ -11,11 +11,11 @@ import (
 	"strings"
 )
 
-const config string = "/etc/hosts"
-
 var add = flag.String("add", "", "Add new entry to the hosts file")
+var remove = flag.String("remove", "", "Remove entries from the hosts file")
 var export = flag.Bool("export", false, "List entries from the hosts file")
 var search = flag.String("search", "", "Search address or domain in the hosts file")
+var config = flag.String("config", "/etc/hosts", "Absolute path of the hosts file")
 
 type Hostman struct{}
 
@@ -29,7 +29,19 @@ type Entry struct {
 	Raw      string
 }
 
+func (obj *Hostman) Config() string {
+	_, err := os.Stat(*config)
+
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+		os.Exit(1)
+	}
+
+	return *config
+}
+
 func (obj *Hostman) Entries() Entries {
+	config := obj.Config()
 	file, err := os.Open(config)
 
 	if err != nil {
@@ -91,6 +103,7 @@ func (obj *Hostman) AddEntry(entry string) {
 		var formatted string
 		var address string = parts[1]
 		var domains string = parts[2]
+		var config string = obj.Config()
 		file, err := os.OpenFile(config, os.O_APPEND|os.O_RDWR, 0644)
 
 		if err != nil {
