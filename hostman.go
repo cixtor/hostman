@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -40,6 +41,45 @@ func (obj *Hostman) Config() string {
 	return *config
 }
 
+func (obj *Hostman) ParseEntry(raw string) (Entry, error) {
+	var entry Entry
+	var addresses []string
+	var sections []string
+	var quantity int
+
+	raw = strings.TrimSpace(raw)
+
+	if raw == "" {
+		return Entry{}, errors.New("Host entry is empty")
+	}
+
+	raw = strings.Replace(raw, "\x20", "\t", -1)
+	sections = strings.Split(raw, "\t")
+
+	for _, section := range sections {
+		if section != "" {
+			addresses = append(addresses, section)
+		}
+	}
+
+	quantity = len(addresses)
+
+	if quantity < 2 {
+		return Entry{}, errors.New("Address and domain are required")
+	}
+
+	entry.Address = addresses[0]
+	entry.Domain = addresses[1]
+	entry.Disabled = entry.Address[0] == 0x23
+	entry.Raw = strings.Join(addresses, "\x20")
+
+	if quantity > 2 {
+		entry.Aliases = addresses[2:quantity]
+	}
+
+	return entry, nil
+}
+
 func (obj *Hostman) Entries() Entries {
 	config := obj.Config()
 	file, err := os.Open(config)
@@ -51,44 +91,18 @@ func (obj *Hostman) Entries() Entries {
 
 	defer file.Close()
 
-	var line string
-	var quantity int
-	var sections []string
-	var addresses []string
 	var entries Entries
 	var entry Entry
+	var line string
 
 	scanner := bufio.NewScanner(file)
 
 	for scanner.Scan() {
 		line = scanner.Text()
+		entry, err = obj.ParseEntry(line)
 
-		if line != "" {
-			entry = Entry{}
-			addresses = []string{}
-			line = strings.Replace(line, "\x20", "\t", -1)
-			sections = strings.Split(line, "\t")
-
-			for _, section := range sections {
-				if section != "" {
-					addresses = append(addresses, section)
-				}
-			}
-
-			quantity = len(addresses)
-
-			if quantity >= 2 {
-				entry.Address = addresses[0]
-				entry.Domain = addresses[1]
-				entry.Disabled = entry.Address[0] == 0x23
-				entry.Raw = strings.Join(addresses, "\x20")
-
-				if quantity > 2 {
-					entry.Aliases = addresses[2:quantity]
-				}
-
-				entries = append(entries, entry)
-			}
+		if err == nil {
+			entries = append(entries, entry)
 		}
 	}
 
@@ -139,6 +153,11 @@ func (obj *Hostman) PrintExportEntries(entries Entries) {
 	os.Exit(0)
 }
 
+func (obj *Hostman) ExportEntries() {
+	entries := obj.Entries()
+	obj.PrintExportEntries(entries)
+}
+
 func (obj *Hostman) SearchEntry(query string) {
 	entries := obj.Entries()
 	var matches Entries
@@ -158,11 +177,6 @@ func (obj *Hostman) SearchEntry(query string) {
 	}
 
 	os.Exit(0)
-}
-
-func (obj *Hostman) ExportEntries() {
-	entries := obj.Entries()
-	obj.PrintExportEntries(entries)
 }
 
 func main() {
