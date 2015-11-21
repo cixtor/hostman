@@ -41,20 +41,20 @@ func (obj *Hostman) Config() string {
 	return *config
 }
 
-func (obj *Hostman) ParseEntry(raw string) (Entry, error) {
+func (obj *Hostman) ParseEntry(line string) (Entry, error) {
 	var entry Entry
 	var addresses []string
 	var sections []string
 	var quantity int
 
-	raw = strings.TrimSpace(raw)
+	line = strings.TrimSpace(line)
 
-	if raw == "" {
+	if line == "" {
 		return Entry{}, errors.New("Host entry is empty")
 	}
 
-	raw = strings.Replace(raw, "\x20", "\t", -1)
-	sections = strings.Split(raw, "\t")
+	line = strings.Replace(line, "\x20", "\t", -1)
+	sections = strings.Split(line, "\t")
 
 	for _, section := range sections {
 		if section != "" {
@@ -71,11 +71,15 @@ func (obj *Hostman) ParseEntry(raw string) (Entry, error) {
 	entry.Address = addresses[0]
 	entry.Domain = addresses[1]
 	entry.Disabled = entry.Address[0] == 0x23
-	entry.Raw = strings.Join(addresses, "\x20")
 
 	if quantity > 2 {
 		entry.Aliases = addresses[2:quantity]
 	}
+
+	entry.Raw = fmt.Sprintf("%s\t%s\x20%s",
+		entry.Address,
+		entry.Domain,
+		strings.Join(entry.Aliases, "\x20"))
 
 	return entry, nil
 }
@@ -109,36 +113,41 @@ func (obj *Hostman) Entries() Entries {
 	return entries
 }
 
-func (obj *Hostman) AddEntry(entry string) {
+func (obj *Hostman) AddEntry(line string) {
 	re := regexp.MustCompile(`^([0-9a-f:\.]{7,39})@(\S+)$`)
-	var parts []string = re.FindStringSubmatch(entry)
+	var parts []string = re.FindStringSubmatch(line)
 
-	if len(parts) == 3 {
-		var formatted string
-		var address string = parts[1]
-		var domains string = parts[2]
-		var config string = obj.Config()
-		file, err := os.OpenFile(config, os.O_APPEND|os.O_RDWR, 0644)
-
-		if err != nil {
-			fmt.Printf("Error: %s\n", err)
-			os.Exit(1)
-		}
-
-		defer file.Close()
-		domains = strings.Replace(domains, ",", "\x20", -1)
-		formatted = fmt.Sprintf("%s\t%s\n", address, domains)
-		_, err = io.WriteString(file, formatted)
-
-		if err != nil {
-			fmt.Printf("Error: %s\n", err)
-			os.Exit(1)
-		}
-
-		os.Exit(0)
-	} else {
-		fmt.Println("Invalid format in host entry")
+	if len(parts) < 3 {
+		fmt.Println("Error: invalid host entry format")
+		os.Exit(1)
 	}
+
+	line = strings.Replace(line, "@", "\t", 1)
+	line = strings.Replace(line, ",", "\x20", -1)
+	entry, err := obj.ParseEntry(line)
+
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+		os.Exit(1)
+	}
+
+	var config string = obj.Config()
+	file, err := os.OpenFile(config, os.O_APPEND|os.O_RDWR, 0644)
+
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+		os.Exit(1)
+	}
+
+	defer file.Close()
+	_, err = io.WriteString(file, entry.Raw+"\n")
+
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+		os.Exit(1)
+	}
+
+	os.Exit(0)
 }
 
 func (obj *Hostman) PrintExportEntries(entries Entries) {
