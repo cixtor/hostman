@@ -113,6 +113,30 @@ func (obj *Hostman) Entries() Entries {
 	return entries
 }
 
+func (obj *Hostman) PrintExportEntries(entries Entries) {
+	result, err := json.MarshalIndent(entries, "", "\x20\x20")
+
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("%s\n", result)
+	os.Exit(0)
+}
+
+func (obj *Hostman) AlreadyExists(entry Entry) bool {
+	entries := obj.Entries()
+
+	for _, current := range entries {
+		if current.Raw == entry.Raw {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (obj *Hostman) AddEntry(line string) {
 	re := regexp.MustCompile(`^([0-9a-f:\.]{7,39})@(\S+)$`)
 	var parts []string = re.FindStringSubmatch(line)
@@ -128,6 +152,11 @@ func (obj *Hostman) AddEntry(line string) {
 
 	if err != nil {
 		fmt.Printf("Error: %s\n", err)
+		os.Exit(1)
+	}
+
+	if obj.AlreadyExists(entry) {
+		fmt.Println("Error: entry is already in hosts file")
 		os.Exit(1)
 	}
 
@@ -147,18 +176,6 @@ func (obj *Hostman) AddEntry(line string) {
 		os.Exit(1)
 	}
 
-	os.Exit(0)
-}
-
-func (obj *Hostman) PrintExportEntries(entries Entries) {
-	result, err := json.MarshalIndent(entries, "", "\x20\x20")
-
-	if err != nil {
-		fmt.Printf("Error: %s\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("%s\n", result)
 	os.Exit(0)
 }
 
