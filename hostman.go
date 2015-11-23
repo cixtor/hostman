@@ -137,6 +137,67 @@ func (obj *Hostman) AlreadyExists(entry Entry) bool {
 	return false
 }
 
+func (obj *Hostman) InArray(haystack []string, needle string) bool {
+	for _, value := range haystack {
+		if value == needle {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (obj *Hostman) RemoveEntryAlias(entry Entry, alias string) Entry {
+	var refactored []string
+
+	for _, dalias := range entry.Aliases {
+		if dalias != alias {
+			refactored = append(refactored, dalias)
+		}
+	}
+
+	entry.Aliases = refactored
+
+	return entry
+}
+
+func (obj *Hostman) RemoveEntry(query string) {
+	var refactored Entries
+	entries := obj.Entries()
+	var quantity int
+
+	for _, entry := range entries {
+		quantity = len(entry.Aliases)
+
+		if entry.Address == query {
+			fmt.Println(entry.Raw)
+		} else if quantity == 0 && entry.Domain == query {
+			fmt.Println(entry.Raw)
+		} else if quantity > 0 && obj.InArray(entry.Aliases, query) {
+			fmt.Println(entry.Raw + " (only alias)")
+			entry = obj.RemoveEntryAlias(entry, query)
+			refactored = append(refactored, entry)
+		} else {
+			refactored = append(refactored, entry)
+		}
+	}
+
+	file, err := os.OpenFile(obj.Config(), os.O_WRONLY, 0644)
+
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+		os.Exit(1)
+	}
+
+	defer file.Close()
+
+	for _, entry := range refactored {
+		io.WriteString(file, entry.Raw+"\n")
+	}
+
+	os.Exit(0)
+}
+
 func (obj *Hostman) AddEntry(line string) {
 	re := regexp.MustCompile(`^([0-9a-f:\.]{7,39})@(\S+)$`)
 	var parts []string = re.FindStringSubmatch(line)
@@ -221,6 +282,8 @@ func main() {
 
 	if *add != "" {
 		manager.AddEntry(*add)
+	} else if *remove != "" {
+		manager.RemoveEntry(*remove)
 	} else if *search != "" {
 		manager.SearchEntry(*search)
 	} else if *export == true {
