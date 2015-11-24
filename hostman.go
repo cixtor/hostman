@@ -76,10 +76,12 @@ func (obj *Hostman) ParseEntry(line string) (Entry, error) {
 		entry.Aliases = addresses[2:quantity]
 	}
 
-	entry.Raw = fmt.Sprintf("%s\t%s\x20%s",
-		entry.Address,
-		entry.Domain,
-		strings.Join(entry.Aliases, "\x20"))
+	entry.Raw = fmt.Sprintf("%s\t%s", entry.Address, entry.Domain)
+
+	if len(entry.Aliases) > 0 {
+		var daliases string = strings.Join(entry.Aliases, "\x20")
+		entry.Raw += fmt.Sprintf("\x20%s", daliases)
+	}
 
 	return entry, nil
 }
