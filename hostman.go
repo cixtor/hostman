@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
@@ -164,6 +165,7 @@ func (obj *Hostman) RemoveEntryAlias(entry Entry, alias string) Entry {
 }
 
 func (obj *Hostman) RemoveEntry(query string) {
+	var final string
 	var refactored Entries
 	entries := obj.Entries()
 	var quantity int
@@ -184,17 +186,15 @@ func (obj *Hostman) RemoveEntry(query string) {
 		}
 	}
 
-	file, err := os.OpenFile(obj.Config(), os.O_WRONLY, 0644)
+	for _, entry := range refactored {
+		final += entry.Raw + "\n"
+	}
+
+	err := ioutil.WriteFile(obj.Config(), []byte(final), 0644)
 
 	if err != nil {
 		fmt.Printf("Error: %s\n", err)
 		os.Exit(1)
-	}
-
-	defer file.Close()
-
-	for _, entry := range refactored {
-		io.WriteString(file, entry.Raw+"\n")
 	}
 
 	os.Exit(0)
