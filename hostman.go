@@ -42,6 +42,23 @@ func (obj *Hostman) Config() string {
 	return *config
 }
 
+func (obj *Hostman) Save(entries Entries) {
+	var final string
+
+	for _, entry := range entries {
+		final += entry.Raw + "\n"
+	}
+
+	err := ioutil.WriteFile(obj.Config(), []byte(final), 0644)
+
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+		os.Exit(1)
+	}
+
+	os.Exit(0)
+}
+
 func (obj *Hostman) ParseEntry(line string) (Entry, error) {
 	var entry Entry
 	var addresses []string
@@ -88,8 +105,7 @@ func (obj *Hostman) ParseEntry(line string) (Entry, error) {
 }
 
 func (obj *Hostman) Entries() Entries {
-	config := obj.Config()
-	file, err := os.Open(config)
+	file, err := os.Open(obj.Config())
 
 	if err != nil {
 		fmt.Printf("Error: %s\n", err)
@@ -165,7 +181,6 @@ func (obj *Hostman) RemoveEntryAlias(entry Entry, alias string) Entry {
 }
 
 func (obj *Hostman) RemoveEntry(query string) {
-	var final string
 	var refactored Entries
 	entries := obj.Entries()
 	var quantity int
@@ -186,18 +201,7 @@ func (obj *Hostman) RemoveEntry(query string) {
 		}
 	}
 
-	for _, entry := range refactored {
-		final += entry.Raw + "\n"
-	}
-
-	err := ioutil.WriteFile(obj.Config(), []byte(final), 0644)
-
-	if err != nil {
-		fmt.Printf("Error: %s\n", err)
-		os.Exit(1)
-	}
-
-	os.Exit(0)
+	obj.Save(refactored)
 }
 
 func (obj *Hostman) AddEntry(line string) {
