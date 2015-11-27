@@ -14,7 +14,7 @@ import (
 )
 
 var add = flag.String("add", "", "Add new entry to the hosts file")
-var remove = flag.String("remove", "", "Remove entries from the hosts file")
+var remove = flag.Bool("remove", false, "Remove entries from the hosts file")
 var export = flag.Bool("export", false, "List entries from the hosts file")
 var search = flag.String("search", "", "Search address or domain in the hosts file")
 var config = flag.String("config", "/etc/hosts", "Absolute path of the hosts file")
@@ -132,7 +132,7 @@ func (obj *Hostman) Entries() Entries {
 	return entries
 }
 
-func (obj *Hostman) PrintExportEntries(entries Entries) {
+func (obj *Hostman) PrintEntries(entries Entries) {
 	result, err := json.MarshalIndent(entries, "", "\x20\x20")
 
 	if err != nil {
@@ -180,22 +180,18 @@ func (obj *Hostman) RemoveEntryAlias(entry Entry, alias string) Entry {
 	return entry
 }
 
-func (obj *Hostman) RemoveEntry(query string) {
+func (obj *Hostman) RemoveEntries(entries Entries) {
+	current := obj.Entries()
 	var refactored Entries
-	entries := obj.Entries()
-	var quantity int
+	var lines []string
 
 	for _, entry := range entries {
-		quantity = len(entry.Aliases)
+		lines = append(lines, entry.Raw)
+	}
 
-		if entry.Address == query {
+	for _, entry := range current {
+		if obj.InArray(lines, entry.Raw) {
 			fmt.Println(entry.Raw)
-		} else if quantity == 0 && entry.Domain == query {
-			fmt.Println(entry.Raw)
-		} else if quantity > 0 && obj.InArray(entry.Aliases, query) {
-			fmt.Println(entry.Raw + " (only alias)")
-			entry = obj.RemoveEntryAlias(entry, query)
-			refactored = append(refactored, entry)
 		} else {
 			refactored = append(refactored, entry)
 		}
@@ -248,25 +244,28 @@ func (obj *Hostman) AddEntry(line string) {
 
 func (obj *Hostman) ExportEntries() {
 	entries := obj.Entries()
-	obj.PrintExportEntries(entries)
+	obj.PrintEntries(entries)
 }
 
 func (obj *Hostman) SearchEntry(query string) {
-	entries := obj.Entries()
 	var matches Entries
+	entries := obj.Entries()
+	var printResults bool = (!*export && !*remove)
 
 	for _, entry := range entries {
 		if strings.Contains(entry.Raw, query) {
 			matches = append(matches, entry)
 
-			if *export == false {
+			if printResults == true {
 				fmt.Printf("%s\n", entry.Raw)
 			}
 		}
 	}
 
 	if *export == true {
-		obj.PrintExportEntries(matches)
+		obj.PrintEntries(matches)
+	} else if *remove == true {
+		obj.RemoveEntries(matches)
 	}
 
 	os.Exit(0)
@@ -288,8 +287,6 @@ func main() {
 
 	if *add != "" {
 		manager.AddEntry(*add)
-	} else if *remove != "" {
-		manager.RemoveEntry(*remove)
 	} else if *search != "" {
 		manager.SearchEntry(*search)
 	} else if *export == true {
