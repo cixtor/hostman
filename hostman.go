@@ -279,6 +279,15 @@ func main() {
 		fmt.Println("  https://en.wikipedia.org/wiki/Hosts_(file)")
 		fmt.Println("Usage:")
 		flag.PrintDefaults()
+		fmt.Println("Examples:")
+		fmt.Println("  hostman -search example")
+		fmt.Println("  hostman -search example -export")
+		fmt.Println("  hostman -search example -remove")
+		fmt.Println("  hostman -add 127.0.0.1@example.com")
+		fmt.Println("  hostman -add 127.0.0.1@example.com,example.org")
+		fmt.Println("  hostman -add 127.0.0.1@example.com,example.org,example.net")
+		fmt.Println("  hostman -export (default: /etc/hosts)")
+		fmt.Println("  hostman -config /tmp/hosts -export")
 	}
 
 	flag.Parse()
