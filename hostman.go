@@ -14,10 +14,11 @@ import (
 )
 
 var add = flag.String("add", "", "Add new entry to the hosts file")
+var config = flag.String("config", "/etc/hosts", "Absolute path of the hosts file")
+var search = flag.String("search", "", "Search address or domain in the hosts file")
+var disable = flag.Bool("disable", false, "Disable entries from the hosts file")
 var remove = flag.Bool("remove", false, "Remove entries from the hosts file")
 var export = flag.Bool("export", false, "List entries from the hosts file")
-var search = flag.String("search", "", "Search address or domain in the hosts file")
-var config = flag.String("config", "/etc/hosts", "Absolute path of the hosts file")
 
 type Hostman struct{}
 
@@ -166,6 +167,16 @@ func (obj *Hostman) InArray(haystack []string, needle string) bool {
 	return false
 }
 
+func (obj *Hostman) RawLines(entries Entries) []string {
+	var lines []string
+
+	for _, entry := range entries {
+		lines = append(lines, entry.Raw)
+	}
+
+	return lines
+}
+
 func (obj *Hostman) RemoveEntryAlias(entry Entry, alias string) Entry {
 	var refactored []string
 
@@ -183,11 +194,7 @@ func (obj *Hostman) RemoveEntryAlias(entry Entry, alias string) Entry {
 func (obj *Hostman) RemoveEntries(entries Entries) {
 	current := obj.Entries()
 	var refactored Entries
-	var lines []string
-
-	for _, entry := range entries {
-		lines = append(lines, entry.Raw)
-	}
+	var lines []string = obj.RawLines(entries)
 
 	for _, entry := range current {
 		if obj.InArray(lines, entry.Raw) {
@@ -195,6 +202,23 @@ func (obj *Hostman) RemoveEntries(entries Entries) {
 		} else {
 			refactored = append(refactored, entry)
 		}
+	}
+
+	obj.Save(refactored)
+}
+
+func (obj *Hostman) DisableEntries(entries Entries) {
+	current := obj.Entries()
+	var refactored Entries
+	var lines []string = obj.RawLines(entries)
+
+	for _, entry := range current {
+		if obj.InArray(lines, entry.Raw) {
+			fmt.Println(entry.Raw)
+			entry.Raw = "#" + entry.Raw
+		}
+
+		refactored = append(refactored, entry)
 	}
 
 	obj.Save(refactored)
@@ -250,7 +274,7 @@ func (obj *Hostman) ExportEntries() {
 func (obj *Hostman) SearchEntry(query string) {
 	var matches Entries
 	entries := obj.Entries()
-	var printResults bool = (!*export && !*remove)
+	var printResults bool = (!*export && !*disable && !*remove)
 
 	for _, entry := range entries {
 		if strings.Contains(entry.Raw, query) {
@@ -264,6 +288,8 @@ func (obj *Hostman) SearchEntry(query string) {
 
 	if *export == true {
 		obj.PrintEntries(matches)
+	} else if *disable == true {
+		obj.DisableEntries(matches)
 	} else if *remove == true {
 		obj.RemoveEntries(matches)
 	}
@@ -283,6 +309,7 @@ func main() {
 		fmt.Println("  hostman -search example")
 		fmt.Println("  hostman -search example -export")
 		fmt.Println("  hostman -search example -remove")
+		fmt.Println("  hostman -search 127.0.0.1 -disable")
 		fmt.Println("  hostman -add 127.0.0.1@example.com")
 		fmt.Println("  hostman -add 127.0.0.1@example.com,example.org")
 		fmt.Println("  hostman -add 127.0.0.1@example.com,example.org,example.net")
