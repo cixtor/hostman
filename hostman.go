@@ -214,8 +214,11 @@ func (obj *Hostman) DisableEntries(entries Entries) {
 
 	for _, entry := range current {
 		if obj.InArray(lines, entry.Raw) {
-			fmt.Println(entry.Raw)
-			entry.Raw = "#" + entry.Raw
+			if entry.Disabled {
+				fmt.Println(entry.Raw + " (already disabled)")
+			} else {
+				entry.Raw = "#" + entry.Raw
+			}
 		}
 
 		refactored = append(refactored, entry)
