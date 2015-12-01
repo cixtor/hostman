@@ -47,6 +47,10 @@ func (obj *Hostman) Save(entries Entries) {
 	var final string
 
 	for _, entry := range entries {
+		if entry.Disabled {
+			final += "#"
+		}
+
 		final += entry.Raw + "\n"
 	}
 
@@ -89,7 +93,11 @@ func (obj *Hostman) ParseEntry(line string) (Entry, error) {
 
 	entry.Address = addresses[0]
 	entry.Domain = addresses[1]
-	entry.Disabled = entry.Address[0] == 0x23
+
+	if entry.Address[0] == 0x23 {
+		entry.Disabled = true
+		entry.Address = entry.Address[1:len(entry.Address)]
+	}
 
 	if quantity > 2 {
 		entry.Aliases = addresses[2:quantity]
@@ -214,11 +222,8 @@ func (obj *Hostman) DisableEntries(entries Entries) {
 
 	for _, entry := range current {
 		if obj.InArray(lines, entry.Raw) {
-			if entry.Disabled {
-				fmt.Println(entry.Raw + " (already disabled)")
-			} else {
-				entry.Raw = "#" + entry.Raw
-			}
+			entry.Disabled = true
+			fmt.Println(entry.Raw)
 		}
 
 		refactored = append(refactored, entry)
