@@ -200,7 +200,7 @@ func (obj *Hostman) RemoveEntryAlias(entry Entry, alias string) Entry {
 	return entry
 }
 
-func (obj *Hostman) RemoveEntries(entries Entries) {
+func (obj *Hostman) EnableOrDisableEntries(entries Entries, action string) {
 	current := obj.Entries()
 	var refactored Entries
 	var lines []string = obj.RawLines(entries)
@@ -208,6 +208,11 @@ func (obj *Hostman) RemoveEntries(entries Entries) {
 	for _, entry := range current {
 		if obj.InArray(lines, entry.Raw) {
 			fmt.Println(entry.Raw)
+
+			if action != "remove" {
+				entry.Disabled = (action == "disable")
+				refactored = append(refactored, entry)
+			}
 		} else {
 			refactored = append(refactored, entry)
 		}
@@ -216,38 +221,16 @@ func (obj *Hostman) RemoveEntries(entries Entries) {
 	obj.Save(refactored)
 }
 
+func (obj *Hostman) RemoveEntries(entries Entries) {
+	obj.EnableOrDisableEntries(entries, "remove")
+}
+
 func (obj *Hostman) EnableEntries(entries Entries) {
-	current := obj.Entries()
-	var refactored Entries
-	var lines []string = obj.RawLines(entries)
-
-	for _, entry := range current {
-		if obj.InArray(lines, entry.Raw) {
-			entry.Disabled = false
-			fmt.Println(entry.Raw)
-		}
-
-		refactored = append(refactored, entry)
-	}
-
-	obj.Save(refactored)
+	obj.EnableOrDisableEntries(entries, "enable")
 }
 
 func (obj *Hostman) DisableEntries(entries Entries) {
-	current := obj.Entries()
-	var refactored Entries
-	var lines []string = obj.RawLines(entries)
-
-	for _, entry := range current {
-		if obj.InArray(lines, entry.Raw) {
-			entry.Disabled = true
-			fmt.Println(entry.Raw)
-		}
-
-		refactored = append(refactored, entry)
-	}
-
-	obj.Save(refactored)
+	obj.EnableOrDisableEntries(entries, "disable")
 }
 
 func (obj *Hostman) AddEntry(line string) {
