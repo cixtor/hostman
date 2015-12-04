@@ -8,6 +8,47 @@ In some operating systems, the contents of the hosts file is used preferentially
 
 More info at [WikiPedia Hosts File](https://en.wikipedia.org/wiki/Hosts_(file))
 
+### Usage
+
+When the program is executed it reads the entire hosts file and parses its entries to separate the IP address, the domain, and the possible aliases; additionally it detects if the line is commented and assigns a special flag to say that the entry is currently disabled. You can export the entire file in JSON format using the _export_ command or export only the entries that match certain text using the _search_ command like this:
+
+```
+$ hostman -search example
+$ hostman -search example -export
+```
+
+The program uses the `/etc/hosts` as the default file path to operate all the actions available, if you have multiple configuration files or want to test the commands with a dummy file you can use the _config_ command to force the program to read a different host file like this:
+
+```
+$ hostman -config /tmp/hosts -export
+$ hostman -config /tmp/hosts -search example
+$ hostman -config /tmp/hosts -search example -export
+```
+
+Adding new entries to the hosts file requires a special format, a new entry needs to have the IP address followed by the `@` symbol and the domain that is going to be associated to it. Note that the address accepts a wide range of characters to support IPv6 and it does not checks the validity of the host in any point, this is intentional as the connection to certain IP blocks will respond with server failures as they are not properly routed by the DNS server; you must check the integrity of the IP and TLD by yourself. Additionally you can append domain aliases separating them with commas like this:
+
+```
+$ hostman -add 127.0.0.1@example.com
+$ hostman -add 127.0.0.1@example.com,example.org
+$ hostman -add 127.0.0.1@example.com,example.org,example.net
+```
+
+The removal of host entries requires the execution of the search command, this is to avoid unexpected modifications as the user can inspect the entries that will be affected before the program overrides the file. The program will remove all the entries found with a simple string matching function, if you want to be more specific with the results add more characters like this:
+
+```
+$ hostman -search example -remove
+$ hostman -search example.com -remove
+$ hostman -search foobar.example.com -remove
+```
+
+Note that the program does not creates backups before the removal and/or addition of one or more entries, you have to be careful with the data that is added to the hosts file as it may break your Internet connection depending on the configuration of your personal computer or server. If you want to delete a host entry temporarily it is suggested to use the _disable_ command instead which will comment the entries that match the query from the search results, and the _enable_ command to uncomment the same entries like this:
+
+```
+$ hostman -search 127.0.0.1 -enable
+$ hostman -search 127.0.0.1 -disable
+$ hostman -search example.com -disable
+```
+
 ### Use Cases
 
 - Basic management of hosts settings
