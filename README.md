@@ -28,6 +28,7 @@ $ hostman -config /tmp/hosts -search example -export
 Adding new entries to the hosts file requires a special format, a new entry needs to have the IP address followed by the `@` symbol and the domain that is going to be associated to it. Note that the address accepts a wide range of characters to support IPv6 and it does not checks the validity of the host in any point, this is intentional as the connection to certain IP blocks will respond with server failures as they are not properly routed by the DNS server; you must check the integrity of the IP and TLD by yourself. Additionally you can append domain aliases separating them with commas like this:
 
 ```
+$ hostman -add ff02::5@example.com
 $ hostman -add 127.0.0.1@example.com
 $ hostman -add 127.0.0.1@example.com,example.org
 $ hostman -add 127.0.0.1@example.com,example.org,example.net
