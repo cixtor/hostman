@@ -50,6 +50,14 @@ $ hostman -search 127.0.0.1 -disable
 $ hostman -search example.com -disable
 ```
 
+### Permission Denied
+
+Some of the operations executed by the program require write permissions on the hosts file depending on its location, you may need to suffix some of the commands with _sudo_ or add your current user account to the admin group. Alternatively you can add an alias that executes sudo automatically for every command like this:
+
+```
+alias hostman='sudo env "PATH=$PATH" hostman $@'
+```
+
 ### Use Cases
 
 - Basic management of hosts settings
