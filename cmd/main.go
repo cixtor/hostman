@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/cixtor/hostman"
 )
 
 var add = flag.String("add", "", "Add new entry to the hosts file")
@@ -12,6 +13,17 @@ var disable = flag.Bool("disable", false, "Disable entries from the hosts file")
 var enable = flag.Bool("enable", false, "Enable entries from the hosts file")
 var remove = flag.Bool("remove", false, "Remove entries from the hosts file")
 var export = flag.Bool("export", false, "List entries from the hosts file")
+
+func jsonEncodeEntries(manager *hostman.Hostman, entries hostman.Entries) {
+	out, err := manager.Export(entries)
+
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+		return
+	}
+
+	fmt.Printf("%s\n", out)
+}
 
 func main() {
 	flag.Usage = func() {
@@ -36,20 +48,54 @@ func main() {
 
 	flag.Parse()
 
-	var manager Hostman
+	manager, err := hostman.New(*config)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	defer manager.Close()
+
+	manager.Load()
 
 	if *add != "" {
-		manager.AddEntry(*add)
+		if err := manager.Add(*add); err != nil {
+			fmt.Println(err)
+		}
 		return
 	}
 
 	if *search != "" {
-		manager.SearchEntry(*search)
+		result := manager.Search(*search)
+
+		if *remove {
+			if err := manager.Remove(result); err != nil {
+				fmt.Println(err)
+			}
+			return
+		}
+
+		if *enable {
+			if err := manager.Enable(result); err != nil {
+				fmt.Println(err)
+			}
+			return
+		}
+
+		if *disable {
+			if err := manager.Disable(result); err != nil {
+				fmt.Println(err)
+			}
+			return
+		}
+
+		jsonEncodeEntries(manager, result)
 		return
 	}
 
 	if *export {
-		manager.ExportEntries()
+		jsonEncodeEntries(manager, manager.Entries())
 		return
 	}
 }

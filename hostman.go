@@ -1,12 +1,11 @@
-package main
+package hostman
 
 import (
 	"bufio"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"io/ioutil"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -15,7 +14,12 @@ import (
 // /etc/hosts file. Operations such as insertion, deletion, update, aliasing and
 // export are implemented with public methods that can be accessed by 3rd-party
 // libraries.
-type Hostman struct{}
+type Hostman struct {
+	registry *os.File
+	entries  Entries
+	filename string
+	count    int
+}
 
 // Entries is a list of objects with attributes representing the information
 // contained on each valid line found in the /etc/hosts file. The list of
@@ -32,21 +36,53 @@ type Entry struct {
 	Raw      string
 }
 
-func (h *Hostman) Config() string {
-	_, err := os.Stat(*config)
+// New creates a new instance of Hostman.
+func New(filename string) (*Hostman, error) {
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_RDWR|os.O_RDONLY, 0644)
 
 	if err != nil {
-		fmt.Printf("Error: %s\n", err)
-		os.Exit(1)
+		return nil, err
 	}
 
-	return *config
+	return &Hostman{registry: file, filename: filename}, nil
 }
 
-func (h *Hostman) Save(entries Entries) error {
+func (h *Hostman) inarray(haystack []string, needle string) bool {
+	for _, value := range haystack {
+		if value == needle {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Close frees the file resource.
+func (h *Hostman) Close() error {
+	return h.registry.Close()
+}
+
+// Load reads the hosts file and parses its current content.
+func (h *Hostman) Load() {
+	scanner := bufio.NewScanner(h.registry)
+
+	for scanner.Scan() {
+		entry, err := h.Parse(scanner.Text())
+
+		if err != nil {
+			continue
+		}
+
+		h.entries = append(h.entries, entry)
+		h.count++
+	}
+}
+
+// Write inserts a new entry into the hosts file.
+func (h *Hostman) Write() error {
 	var final string
 
-	for _, entry := range entries {
+	for _, entry := range h.entries {
 		if entry.Disabled {
 			final += "#"
 		}
@@ -54,19 +90,26 @@ func (h *Hostman) Save(entries Entries) error {
 		final += entry.Raw + "\n"
 	}
 
-	return ioutil.WriteFile(h.Config(), []byte(final), 0644)
+	return ioutil.WriteFile(h.filename, []byte(final), 0644)
 }
 
-func (h *Hostman) ParseEntry(line string) (Entry, error) {
+// Parse takes a string a tries to extract its associated attributes. If the
+// string is not a valid hosts file entry then it returns a nil object with an
+// error message explaining the failure.
+func (h *Hostman) Parse(line string) (Entry, error) {
 	var entry Entry
-	var addresses []string
-	var sections []string
 	var quantity int
+	var sections []string
+	var addresses []string
 
 	line = strings.TrimSpace(line)
 
 	if line == "" {
 		return Entry{}, errors.New("Host entry is empty")
+	}
+
+	if len(line) >= 2 && line[0:2] == "#\x20" {
+		return Entry{}, errors.New("Superfluous comment")
 	}
 
 	line = strings.Replace(line, "\x20", "\t", -1)
@@ -87,7 +130,7 @@ func (h *Hostman) ParseEntry(line string) (Entry, error) {
 	entry.Address = addresses[0]
 	entry.Domain = addresses[1]
 
-	if entry.Address[0] == 0x23 {
+	if entry.Address[0] == '#' {
 		entry.Disabled = true
 		entry.Address = entry.Address[1:len(entry.Address)]
 	}
@@ -96,58 +139,26 @@ func (h *Hostman) ParseEntry(line string) (Entry, error) {
 		entry.Aliases = addresses[2:quantity]
 	}
 
-	entry.Raw = fmt.Sprintf("%s\t%s", entry.Address, entry.Domain)
+	entry.Raw = entry.Address + "\t" + entry.Domain
 
 	if len(entry.Aliases) > 0 {
-		var daliases string = strings.Join(entry.Aliases, "\x20")
-		entry.Raw += fmt.Sprintf("\x20%s", daliases)
+		entry.Raw += "\x20" + strings.Join(entry.Aliases, "\x20")
 	}
 
 	return entry, nil
 }
 
-func (h *Hostman) Entries() (Entries, error) {
-	file, err := os.Open(h.Config())
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer file.Close()
-
-	var entries Entries
-	var entry Entry
-	var line string
-
-	scanner := bufio.NewScanner(file)
-
-	for scanner.Scan() {
-		line = scanner.Text()
-		entry, err = h.ParseEntry(line)
-
-		if err == nil {
-			entries = append(entries, entry)
-		}
-	}
-
-	return entries, nil
+// Entries returns a list of objects representing the content of the hosts file.
+// Invalid lines are ignored and no error messages will be passed back to the
+// function caller as a result of a failure, you must treat the output always as
+// a success no matter if the list of entries is empty.
+func (h *Hostman) Entries() Entries {
+	return h.entries
 }
 
-func (h *Hostman) PrintEntries(entries Entries) {
-	result, err := json.MarshalIndent(entries, "", "\x20\x20")
-
-	if err != nil {
-		fmt.Printf("Error: %s\n", err)
-		return
-	}
-
-	fmt.Printf("%s\n", result)
-}
-
+// AlreadyExists checks if an entry already exists in the hosts file.
 func (h *Hostman) AlreadyExists(entry Entry) bool {
-	entries := h.Entries()
-
-	for _, current := range entries {
+	for _, current := range h.entries {
 		if current.Raw == entry.Raw {
 			return true
 		}
@@ -156,16 +167,9 @@ func (h *Hostman) AlreadyExists(entry Entry) bool {
 	return false
 }
 
-func (h *Hostman) InArray(haystack []string, needle string) bool {
-	for _, value := range haystack {
-		if value == needle {
-			return true
-		}
-	}
-
-	return false
-}
-
+// RawLines returns a list of strings representing the real content of the hosts
+// file without transformations nor parsing nor auto-fixes. Notice that empty
+// lines are ignored as well as comments except for commented entries.
 func (h *Hostman) RawLines(entries Entries) []string {
 	var lines []string
 
@@ -176,7 +180,71 @@ func (h *Hostman) RawLines(entries Entries) []string {
 	return lines
 }
 
-func (h *Hostman) RemoveEntryAlias(entry Entry, alias string) Entry {
+func (h *Hostman) enableOrDisableEntries(entries Entries, action string) error {
+	var refactored Entries
+
+	lines := h.RawLines(entries)
+
+	for _, entry := range h.entries {
+		if h.inarray(lines, entry.Raw) {
+			if action != "remove" {
+				entry.Disabled = (action == "disable")
+				refactored = append(refactored, entry)
+			}
+		} else {
+			refactored = append(refactored, entry)
+		}
+	}
+
+	h.entries = refactored
+
+	return h.Write()
+}
+
+// Remove deletes an entry from the hosts file.
+func (h *Hostman) Remove(entries Entries) error {
+	return h.enableOrDisableEntries(entries, "remove")
+}
+
+// Enable uncomments an entry from the hosts file.
+func (h *Hostman) Enable(entries Entries) error {
+	return h.enableOrDisableEntries(entries, "enable")
+}
+
+// Disable comments an entry from the hosts file.
+func (h *Hostman) Disable(entries Entries) error {
+	return h.enableOrDisableEntries(entries, "disable")
+}
+
+// Add inserts an entry into the hosts file.
+func (h *Hostman) Add(line string) error {
+	re := regexp.MustCompile(`^([0-9a-f:\.]{7,39})@(\S+)$`)
+	parts := re.FindStringSubmatch(line)
+
+	if len(parts) < 3 {
+		return errors.New("Invalid host entry format")
+	}
+
+	line = strings.Replace(line, "@", "\t", 1)
+	line = strings.Replace(line, ",", "\x20", -1)
+
+	entry, err := h.Parse(line)
+
+	if err != nil {
+		return err
+	}
+
+	if h.AlreadyExists(entry) {
+		return errors.New("Entry is already in hosts file")
+	}
+
+	h.entries = append(h.entries, entry)
+
+	return h.Write()
+}
+
+// RemoveAlias pops a domain alias associated to a host entry.
+func (h *Hostman) RemoveAlias(entry Entry, alias string) Entry {
 	var refactored []string
 
 	for _, dalias := range entry.Aliases {
@@ -190,103 +258,22 @@ func (h *Hostman) RemoveEntryAlias(entry Entry, alias string) Entry {
 	return entry
 }
 
-func (h *Hostman) EnableOrDisableEntries(entries Entries, action string) {
-	current := h.Entries()
-
-	var refactored Entries
-	var lines []string = h.RawLines(entries)
-
-	for _, entry := range current {
-		if h.InArray(lines, entry.Raw) {
-			fmt.Println(entry.Raw)
-
-			if action != "remove" {
-				entry.Disabled = (action == "disable")
-				refactored = append(refactored, entry)
-			}
-		} else {
-			refactored = append(refactored, entry)
-		}
-	}
-
-	h.Save(refactored)
+// Export JSON-encodes the entire hosts file and returns.
+func (h *Hostman) Export(entries Entries) ([]byte, error) {
+	return json.MarshalIndent(entries, "", "\x20\x20")
 }
 
-func (h *Hostman) RemoveEntries(entries Entries) {
-	h.EnableOrDisableEntries(entries, "remove")
-}
-
-func (h *Hostman) EnableEntries(entries Entries) {
-	h.EnableOrDisableEntries(entries, "enable")
-}
-
-func (h *Hostman) DisableEntries(entries Entries) {
-	h.EnableOrDisableEntries(entries, "disable")
-}
-
-func (h *Hostman) AddEntry(line string) error {
-	re := regexp.MustCompile(`^([0-9a-f:\.]{7,39})@(\S+)$`)
-	parts := re.FindStringSubmatch(line)
-
-	if len(parts) < 3 {
-		return errors.New("Invalid host entry format")
-	}
-
-	line = strings.Replace(line, "@", "\t", 1)
-	line = strings.Replace(line, ",", "\x20", -1)
-	entry, err := h.ParseEntry(line)
-
-	if err != nil {
-		return err
-	}
-
-	if h.AlreadyExists(entry) {
-		return errors.New("Entry is already in hosts file")
-	}
-
-	var config string = h.Config()
-
-	file, err := os.OpenFile(config, os.O_APPEND|os.O_RDWR, 0644)
-
-	if err != nil {
-		return err
-	}
-
-	defer file.Close()
-
-	_, err = io.WriteString(file, entry.Raw+"\n")
-
-	return err
-}
-
-func (h *Hostman) ExportEntries() {
-	entries := h.Entries()
-	h.PrintEntries(entries)
-}
-
-func (h *Hostman) SearchEntry(query string) {
+// Search locates and returns an entry from the hosts file.
+func (h *Hostman) Search(query string) Entries {
 	var matches Entries
 
 	entries := h.Entries()
-	printResults := (!*export && !*enable && !*disable && !*remove)
 
 	for _, entry := range entries {
 		if strings.Contains(entry.Raw, query) {
 			matches = append(matches, entry)
-
-			if printResults == true {
-				fmt.Printf("%s\n", entry.Raw)
-			}
 		}
 	}
 
-	if *export == true {
-		h.PrintEntries(matches)
-	} else if *enable == true {
-		h.EnableEntries(matches)
-	} else if *disable == true {
-		h.DisableEntries(matches)
-	} else if *remove == true {
-		h.RemoveEntries(matches)
-	}
+	return matches
 }
