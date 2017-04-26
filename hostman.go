@@ -1,4 +1,4 @@
-package hostman
+package main
 
 import (
 	"bufio"

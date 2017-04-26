@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/cixtor/hostman"
 )
 
 var add = flag.String("add", "", "Add new entry to the hosts file")
@@ -14,7 +13,7 @@ var enable = flag.Bool("enable", false, "Enable entries from the hosts file")
 var remove = flag.Bool("remove", false, "Remove entries from the hosts file")
 var export = flag.Bool("export", false, "List entries from the hosts file")
 
-func jsonEncodeEntries(manager *hostman.Hostman, entries hostman.Entries) {
+func jsonEncodeEntries(manager *Hostman, entries Entries) {
 	out, err := manager.Export(entries)
 
 	if err != nil {
@@ -48,7 +47,7 @@ func main() {
 
 	flag.Parse()
 
-	manager, err := hostman.New(*config)
+	manager, err := New(*config)
 
 	if err != nil {
 		fmt.Println(err)
